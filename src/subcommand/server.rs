@@ -168,6 +168,7 @@ impl Server {
         .route("/static/*path", get(Self::static_asset))
         .route("/status", get(Self::status))
         .route("/tx/:txid", get(Self::transaction))
+        .route("/insc/:number", get(Self::insc))
         .layer(Extension(index))
         .layer(Extension(page_config))
         .layer(Extension(Arc::new(config)))
@@ -883,6 +884,13 @@ impl Server {
     Self::inscriptions_inner(page_config, index, Some(from)).await
   }
 
+  async fn insc(
+    Extension(index): Extension<Arc<Index>>,
+    Path(number): Path<u64>,
+  ) -> ServerResult<Response> {
+    Self::insc_inner(index, number).await
+  }
+
   async fn inscriptions_inner(
     page_config: Arc<PageConfig>,
     index: Arc<Index>,
@@ -896,6 +904,25 @@ impl Server {
         prev,
       }
       .page(page_config, index.has_sat_index()?),
+    )
+  }
+
+  async fn insc_inner(
+    index: Arc<Index>,
+    number: u64,
+  ) -> ServerResult<Response> {
+    let inscription_id = index
+      .get_inscription_id_by_inscription_number(number)?
+      .ok_or_not_found(|| format!("inscription id of {number}"))?;
+
+    let inscription = index
+      .get_inscription_by_id(inscription_id)?
+      .ok_or_not_found(|| format!("inscription of {number}"))?;
+
+    Ok(
+      Self::content_response(inscription)
+        .ok_or_not_found(|| format!("inscription {number} content"))?
+        .into_response(),
     )
   }
 
